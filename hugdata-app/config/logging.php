@@ -54,7 +54,7 @@ return [
 
         'stack' => [
             'driver' => 'stack',
-            'channels' => explode(',', env('LOG_STACK', 'single')),
+            'channels' => explode(',', env('LOG_STACK', 'single,daily')),
             'ignore_exceptions' => false,
         ],
 
@@ -127,7 +127,23 @@ return [
             'path' => storage_path('logs/laravel.log'),
         ],
 
-        // Application-specific channels
+        // HugData-specific channels
+        'hugdata' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/hugdata.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
+
+        'ai_service' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/ai-service.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
+
         'application' => [
             'driver' => 'daily',
             'path' => storage_path('logs/application.log'),

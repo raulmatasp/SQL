@@ -1,0 +1,70 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - "rules/*.yml"
+
+scrape_configs:
+  # FastAPI AI Service
+  - job_name: 'fastapi-ai'
+    static_configs:
+      - targets: ['fastapi:8003']
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  # Laravel Application
+  - job_name: 'laravel-app'
+    static_configs:
+      - targets: ['laravel:8000']
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  # Dagster Web Server
+  - job_name: 'dagster'
+    static_configs:
+      - targets: ['dagster:3001']
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  # PostgreSQL Database
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres_exporter:9187']
+    scrape_interval: 30s
+
+  # Redis Cache
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis_exporter:9121']
+    scrape_interval: 30s
+
+  # Weaviate Vector DB
+  - job_name: 'weaviate'
+    static_configs:
+      - targets: ['weaviate:8080']
+    metrics_path: /v1/metrics
+    scrape_interval: 30s
+
+  # Node Exporter for system metrics
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node_exporter:9100']
+    scrape_interval: 30s
+
+  # Nginx Load Balancer
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx_exporter:9113']
+    scrape_interval: 30s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+storage_config:
+  tsdb:
+    retention.time: 30d
+    retention.size: 10GB
