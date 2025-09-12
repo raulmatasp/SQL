@@ -63,6 +63,10 @@ class ChartSuggestion(BaseModel):
     configuration: Dict[str, Any]
     confidence: float
 
+class ChartSuggestionRequest(BaseModel):
+    data_sample: Dict[str, Any]
+    query_intent: str
+
 # Core Endpoints
 @app.post("/generate-sql", response_model=SQLGenerationResponse)
 async def generate_sql(request: NaturalLanguageQuery):
@@ -103,7 +107,7 @@ async def explain_query(sql: str, schema: Dict[str, Any]):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/suggest-charts", response_model=List[ChartSuggestion])
-async def suggest_charts(data_sample: Dict[str, Any], query_intent: str):
+async def suggest_charts(request: ChartSuggestionRequest):
     """Suggest appropriate chart types for query results"""
     try:
         # Mock chart suggestions for now

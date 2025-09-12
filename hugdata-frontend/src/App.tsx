@@ -7,6 +7,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
+import DataSources from './pages/DataSources';
 import QueryInterface from './pages/QueryInterface';
 import './App.css';
 
@@ -49,6 +50,11 @@ function App() {
               <Route path="/projects/:projectId" element={
                 <ProtectedRoute>
                   <ProjectDetail />
+                </ProtectedRoute>
+              } />
+              <Route path="/projects/:projectId/data-sources" element={
+                <ProtectedRoute>
+                  <DataSources />
                 </ProtectedRoute>
               } />
               <Route path="/projects/:projectId/query" element={
