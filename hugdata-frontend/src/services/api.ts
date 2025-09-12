@@ -243,7 +243,7 @@ export const aiService = {
   },
 
   suggestCharts: async (dataSample: any[], queryIntent: string): Promise<any> => {
-    const response = await api.post('/ai/suggest-charts', {
+    const response = await api.post('/queries/suggest-charts', {
       data_sample: dataSample,
       query_intent: queryIntent,
     });

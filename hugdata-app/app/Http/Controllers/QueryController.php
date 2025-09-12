@@ -159,4 +159,27 @@ class QueryController extends Controller
 
         return response()->json($query);
     }
+
+    public function suggestCharts(Request $request): JsonResponse
+    {
+        try {
+            $request->validate([
+                'data_sample' => 'required|array',
+                'query_intent' => 'required|string',
+            ]);
+
+            $suggestions = $this->aiService->suggestCharts(
+                $request->input('data_sample'),
+                $request->input('query_intent')
+            );
+            
+            return response()->json($suggestions);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to generate chart suggestions',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

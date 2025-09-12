@@ -110,30 +110,97 @@ async def explain_query(sql: str, schema: Dict[str, Any]):
 async def suggest_charts(request: ChartSuggestionRequest):
     """Suggest appropriate chart types for query results"""
     try:
-        # Mock chart suggestions for now
-        # TODO: Implement actual chart suggestion logic
-        suggestions = [
-            ChartSuggestion(
+        data_sample = request.data_sample
+        query_intent = request.query_intent.lower()
+        
+        # Analyze the data structure
+        if not data_sample or len(data_sample) == 0:
+            return []
+            
+        # Get column information
+        columns = list(data_sample.keys()) if isinstance(data_sample, dict) else []
+        if len(columns) == 0:
+            return []
+        
+        suggestions = []
+        
+        # Analyze columns to determine appropriate chart types
+        numeric_columns = []
+        text_columns = []
+        date_columns = []
+        
+        for col, value in data_sample.items():
+            if isinstance(value, (int, float)) or (isinstance(value, str) and value.replace('.', '').replace('-', '').isdigit()):
+                numeric_columns.append(col)
+            elif any(date_word in col.lower() for date_word in ['date', 'time', 'created', 'updated', 'year', 'month']):
+                date_columns.append(col)
+            else:
+                text_columns.append(col)
+        
+        # Rule-based chart suggestions
+        
+        # Bar chart - good for categorical comparisons
+        if len(text_columns) >= 1 and len(numeric_columns) >= 1:
+            suggestions.append(ChartSuggestion(
                 chart_type="bar",
                 configuration={
-                    "xAxis": "category",
-                    "yAxis": "value",
-                    "title": "Data Distribution"
+                    "xAxis": text_columns[0],
+                    "yAxis": numeric_columns[0],
+                    "title": f"{numeric_columns[0].replace('_', ' ').title()} by {text_columns[0].replace('_', ' ').title()}"
                 },
-                confidence=0.9
-            ),
-            ChartSuggestion(
+                confidence=0.9 if "compare" in query_intent or "by" in query_intent else 0.7
+            ))
+        
+        # Line chart - good for trends over time or continuous data
+        if len(date_columns) >= 1 and len(numeric_columns) >= 1:
+            suggestions.append(ChartSuggestion(
                 chart_type="line",
                 configuration={
-                    "xAxis": "date",
-                    "yAxis": "value",
-                    "title": "Trend Over Time"
+                    "xAxis": date_columns[0],
+                    "yAxis": numeric_columns[0],
+                    "title": f"{numeric_columns[0].replace('_', ' ').title()} Over Time"
                 },
-                confidence=0.8
-            )
-        ]
+                confidence=0.9 if any(word in query_intent for word in ["trend", "over time", "growth", "change"]) else 0.8
+            ))
+        elif len(numeric_columns) >= 2:
+            suggestions.append(ChartSuggestion(
+                chart_type="line",
+                configuration={
+                    "xAxis": numeric_columns[0],
+                    "yAxis": numeric_columns[1],
+                    "title": f"{numeric_columns[1].replace('_', ' ').title()} vs {numeric_columns[0].replace('_', ' ').title()}"
+                },
+                confidence=0.7
+            ))
         
-        return suggestions
+        # Pie chart - good for parts of a whole
+        if len(text_columns) >= 1 and len(numeric_columns) >= 1:
+            suggestions.append(ChartSuggestion(
+                chart_type="pie",
+                configuration={
+                    "xAxis": text_columns[0],
+                    "yAxis": numeric_columns[0],
+                    "title": f"{numeric_columns[0].replace('_', ' ').title()} Distribution"
+                },
+                confidence=0.8 if any(word in query_intent for word in ["distribution", "share", "percentage", "proportion"]) else 0.6
+            ))
+        
+        # Doughnut chart - alternative to pie chart
+        if len(text_columns) >= 1 and len(numeric_columns) >= 1:
+            suggestions.append(ChartSuggestion(
+                chart_type="doughnut",
+                configuration={
+                    "xAxis": text_columns[0],
+                    "yAxis": numeric_columns[0],
+                    "title": f"{numeric_columns[0].replace('_', ' ').title()} Breakdown"
+                },
+                confidence=0.7 if "breakdown" in query_intent else 0.5
+            ))
+        
+        # Sort by confidence and return top suggestions
+        suggestions.sort(key=lambda x: x.confidence, reverse=True)
+        return suggestions[:3]  # Return top 3 suggestions
+        
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

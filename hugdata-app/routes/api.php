@@ -39,6 +39,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
     Route::prefix('queries')->group(function () {
         Route::post('natural-language', [QueryController::class, 'processNaturalLanguage']);
         Route::post('sql', [QueryController::class, 'executeSql']);
+        Route::post('suggest-charts', [QueryController::class, 'suggestCharts']);
         Route::get('history', [QueryController::class, 'history']);
         Route::get('{query}', [QueryController::class, 'show']);
     });
