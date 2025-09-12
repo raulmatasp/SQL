@@ -4,10 +4,21 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import uvicorn
 import os
+import asyncio
+from datetime import datetime
 
 from src.providers.llm_provider import OpenAIProvider, MockLLMProvider
 from src.providers.vector_store import WeaviateProvider, MockVectorStore
 from src.pipelines.sql_generation import SQLGenerationPipeline
+
+# Import Dagster components
+try:
+    from dagster import DagsterInstance, execute_job, materialize
+    from dagster_project.definitions import defs
+    DAGSTER_AVAILABLE = True
+except ImportError:
+    DAGSTER_AVAILABLE = False
+    print("Warning: Dagster not available, running in compatibility mode")
 
 app = FastAPI(
     title="HugData AI Service",
@@ -66,6 +77,22 @@ class ChartSuggestion(BaseModel):
 class ChartSuggestionRequest(BaseModel):
     data_sample: Dict[str, Any]
     query_intent: str
+
+# Dagster workflow models
+class WorkflowTriggerRequest(BaseModel):
+    workflow_type: str
+    project_id: str
+    user_id: str
+    workflow_run_id: int
+    config: Optional[Dict[str, Any]] = None
+    tags: Optional[Dict[str, str]] = None
+
+class WorkflowStatusResponse(BaseModel):
+    run_id: str
+    status: str
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    error_message: Optional[str] = None
 
 # Core Endpoints
 @app.post("/generate-sql", response_model=SQLGenerationResponse)
@@ -218,10 +245,179 @@ async def index_schema(schema: Dict[str, Any], project_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# Dagster workflow endpoints
+@app.post("/dagster/trigger")
+async def trigger_dagster_workflow(request: WorkflowTriggerRequest):
+    """Trigger Dagster workflow execution"""
+    if not DAGSTER_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Dagster not available")
+    
+    try:
+        # Get Dagster instance
+        instance = DagsterInstance.get()
+        
+        # Build run configuration
+        run_config = _build_dagster_run_config(request)
+        
+        # Execute based on workflow type
+        if request.workflow_type == "schema_ingestion":
+            result = materialize(
+                [defs.get_asset_graph().get("database_schema")],
+                instance=instance,
+                tags=request.tags or {},
+                run_config=run_config
+            )
+        elif request.workflow_type == "query_generation":
+            result = materialize(
+                [defs.get_asset_graph().get("sql_query_asset")],
+                instance=instance,
+                tags=request.tags or {},
+                run_config=run_config
+            )
+        elif request.workflow_type == "full_pipeline":
+            result = materialize(
+                list(defs.get_asset_graph().assets),
+                instance=instance,
+                tags=request.tags or {},
+                run_config=run_config
+            )
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown workflow type: {request.workflow_type}")
+        
+        # Update Laravel via webhook
+        await _notify_laravel_workflow_started(request.workflow_run_id, result.run_id)
+        
+        return {
+            "run_id": result.run_id,
+            "status": "started",
+            "workflow_type": request.workflow_type
+        }
+        
+    except Exception as e:
+        await _notify_laravel_workflow_failed(request.workflow_run_id, str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/dagster/status/{run_id}")
+async def get_workflow_status(run_id: str):
+    """Get Dagster workflow execution status"""
+    if not DAGSTER_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Dagster not available")
+    
+    try:
+        instance = DagsterInstance.get()
+        run = instance.get_run_by_id(run_id)
+        
+        if not run:
+            raise HTTPException(status_code=404, detail="Run not found")
+        
+        return WorkflowStatusResponse(
+            run_id=run_id,
+            status=run.status.value,
+            started_at=run.start_time,
+            completed_at=run.end_time,
+            error_message=None  # TODO: Extract from run if available
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/dagster/runs")
+async def list_workflow_runs(project_id: Optional[str] = None, limit: int = 10):
+    """List recent workflow runs"""
+    if not DAGSTER_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Dagster not available")
+    
+    try:
+        instance = DagsterInstance.get()
+        runs = instance.get_runs(limit=limit)
+        
+        # Filter by project if specified
+        if project_id:
+            runs = [run for run in runs if run.tags.get("project_id") == project_id]
+        
+        return [
+            WorkflowStatusResponse(
+                run_id=run.run_id,
+                status=run.status.value,
+                started_at=run.start_time,
+                completed_at=run.end_time
+            )
+            for run in runs
+        ]
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+def _build_dagster_run_config(request: WorkflowTriggerRequest) -> Dict[str, Any]:
+    """Build Dagster run configuration"""
+    base_config = {
+        "resources": {
+            "database_resource": {
+                "config": {
+                    "laravel_api_url": os.getenv("LARAVEL_API_URL", "http://localhost:8000/api"),
+                    "api_token": os.getenv("LARAVEL_API_TOKEN", "")
+                }
+            },
+            "vector_store_resource": {
+                "config": {
+                    "weaviate_url": os.getenv("WEAVIATE_URL", "http://localhost:8080")
+                }
+            },
+            "llm_provider_resource": {
+                "config": {
+                    "openai_api_key": os.getenv("OPENAI_API_KEY", ""),
+                    "model_name": os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+                }
+            }
+        }
+    }
+    
+    # Merge with request config
+    if request.config:
+        base_config.update(request.config)
+    
+    return base_config
+
+async def _notify_laravel_workflow_started(workflow_run_id: int, dagster_run_id: str):
+    """Notify Laravel that workflow started"""
+    import httpx
+    
+    try:
+        laravel_url = os.getenv("LARAVEL_API_URL", "http://localhost:8000/api")
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                f"{laravel_url}/workflows/{workflow_run_id}/started",
+                json={"dagster_run_id": dagster_run_id},
+                headers={"Authorization": f"Bearer {os.getenv('LARAVEL_API_TOKEN', '')}"},
+                timeout=10
+            )
+    except Exception as e:
+        print(f"Failed to notify Laravel of workflow start: {e}")
+
+async def _notify_laravel_workflow_failed(workflow_run_id: int, error_message: str):
+    """Notify Laravel that workflow failed"""
+    import httpx
+    
+    try:
+        laravel_url = os.getenv("LARAVEL_API_URL", "http://localhost:8000/api")
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                f"{laravel_url}/workflows/{workflow_run_id}/failed",
+                json={"error_message": error_message},
+                headers={"Authorization": f"Bearer {os.getenv('LARAVEL_API_TOKEN', '')}"},
+                timeout=10
+            )
+    except Exception as e:
+        print(f"Failed to notify Laravel of workflow failure: {e}")
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return {"status": "healthy", "service": "hugdata-ai"}
+    return {
+        "status": "healthy", 
+        "service": "hugdata-ai",
+        "dagster_available": DAGSTER_AVAILABLE
+    }
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8001)
