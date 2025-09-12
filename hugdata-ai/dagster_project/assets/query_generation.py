@@ -48,7 +48,7 @@ def sql_query_asset(
         )
         
         # 3. Generate SQL using LLM
-        llm_response = await llm_provider_resource.generate(
+        llm_response = llm_provider_resource.generate(
             prompt=prompt,
             max_tokens=1000,
             temperature=0.1

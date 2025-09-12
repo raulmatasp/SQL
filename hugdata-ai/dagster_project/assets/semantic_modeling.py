@@ -31,7 +31,7 @@ def semantic_model(
         context.log.info(f"Discovered {len(entities)} business entities")
         
         # 2. Generate calculated fields using AI
-        calculated_fields = await _generate_calculated_fields(entities, llm_provider_resource, context)
+        calculated_fields = _generate_calculated_fields(entities, llm_provider_resource, context)
         context.log.info(f"Generated {len(calculated_fields)} calculated fields")
         
         # 3. Create business metrics and KPIs
@@ -42,7 +42,7 @@ def semantic_model(
         semantic_relationships = _build_semantic_relationships(entities, relationships)
         
         # 5. Generate natural language mappings
-        nl_mappings = await _generate_natural_language_mappings(entities, llm_provider_resource, context)
+        nl_mappings = _generate_natural_language_mappings(entities, llm_provider_resource, context)
         
         semantic_model = {
             "project_id": project_id,
@@ -168,7 +168,7 @@ def _classify_attribute_type(column: Dict) -> str:
     else:
         return "general"
 
-async def _generate_calculated_fields(entities: List[Dict], llm_provider: LLMProviderResource, context: AssetExecutionContext) -> List[Dict]:
+def _generate_calculated_fields(entities: List[Dict], llm_provider: LLMProviderResource, context: AssetExecutionContext) -> List[Dict]:
     """Generate calculated fields using AI analysis"""
     
     calculated_fields = []
@@ -189,7 +189,7 @@ Example:
 CUSTOMER_LIFETIME_VALUE: Total revenue per customer | SUM(order_total) | Revenue optimization
 """
             
-            response = await llm_provider.generate(prompt, max_tokens=500, temperature=0.3)
+            response = llm_provider.generate(prompt, max_tokens=500, temperature=0.3)
             
             # Parse response and extract calculated fields
             fields = _parse_calculated_fields_response(response, entity)
@@ -318,7 +318,7 @@ def _build_semantic_relationships(entities: List[Dict], relationships: List[Dict
     
     return semantic_relationships
 
-async def _generate_natural_language_mappings(entities: List[Dict], llm_provider: LLMProviderResource, context: AssetExecutionContext) -> List[Dict]:
+def _generate_natural_language_mappings(entities: List[Dict], llm_provider: LLMProviderResource, context: AssetExecutionContext) -> List[Dict]:
     """Generate natural language to SQL mappings for common queries"""
     
     mappings = []

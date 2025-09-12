@@ -15,5 +15,3 @@ def analytics_refresh_job():
     semantic_data = semantic_model()
     business_intelligence_metrics(semantic_data)
     usage_pattern_analytics()
-    
-    return business_intelligence_metrics

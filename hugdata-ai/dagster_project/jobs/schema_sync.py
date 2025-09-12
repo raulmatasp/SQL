@@ -15,5 +15,3 @@ def schema_sync_job():
     schema = database_schema()
     vector_index = schema_vector_index(schema)
     semantic_model(schema)
-    
-    return vector_index
