@@ -54,7 +54,7 @@ return [
 
         'stack' => [
             'driver' => 'stack',
-            'channels' => explode(',', env('LOG_STACK', 'single,daily')),
+            'channels' => explode(',', env('LOG_STACK', 'single')),
             'ignore_exceptions' => false,
         ],
 
@@ -125,63 +125,6 @@ return [
 
         'emergency' => [
             'path' => storage_path('logs/laravel.log'),
-        ],
-
-        // HugData-specific channels
-        'hugdata' => [
-            'driver' => 'daily',
-            'path' => storage_path('logs/hugdata.log'),
-            'level' => env('LOG_LEVEL', 'info'),
-            'days' => 30,
-            'replace_placeholders' => true,
-        ],
-
-        'ai_service' => [
-            'driver' => 'daily',
-            'path' => storage_path('logs/ai-service.log'),
-            'level' => env('LOG_LEVEL', 'info'),
-            'days' => 30,
-            'replace_placeholders' => true,
-        ],
-
-        'application' => [
-            'driver' => 'daily',
-            'path' => storage_path('logs/application.log'),
-            'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 30,
-            'replace_placeholders' => true,
-        ],
-
-        'database' => [
-            'driver' => 'daily',
-            'path' => storage_path('logs/database.log'),
-            'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 14,
-            'replace_placeholders' => true,
-        ],
-
-        'queries' => [
-            'driver' => 'daily',
-            'path' => storage_path('logs/queries.log'),
-            'level' => env('LOG_LEVEL', 'info'),
-            'days' => 7,
-            'replace_placeholders' => true,
-        ],
-
-        'security' => [
-            'driver' => 'daily',
-            'path' => storage_path('logs/security.log'),
-            'level' => 'warning',
-            'days' => 90,
-            'replace_placeholders' => true,
-        ],
-
-        'performance' => [
-            'driver' => 'daily',
-            'path' => storage_path('logs/performance.log'),
-            'level' => 'info',
-            'days' => 7,
-            'replace_placeholders' => true,
         ],
 
     ],
