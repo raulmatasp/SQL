@@ -6,6 +6,7 @@ use App\Http\Controllers\DataSourceController;
 use App\Http\Controllers\QueryController;
 use App\Http\Controllers\AIController;
 use App\Http\Controllers\ChartController;
+use App\Http\Controllers\Api\WorkflowController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -57,4 +58,18 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
         Route::post('generate', [ChartController::class, 'generateChart']);
         Route::post('analyze-trends', [ChartController::class, 'analyzeTrends']);
     });
+    
+    // Workflow endpoints
+    Route::prefix('workflows')->group(function () {
+        Route::post('trigger', [WorkflowController::class, 'trigger']);
+        Route::get('/', [WorkflowController::class, 'index']);
+        Route::get('analytics', [WorkflowController::class, 'analytics']);
+        Route::get('{workflowRun}', [WorkflowController::class, 'status']);
+        Route::post('{workflowRun}/cancel', [WorkflowController::class, 'cancel']);
+    });
+});
+
+// Webhook endpoints (no auth required)
+Route::prefix('webhooks')->group(function () {
+    Route::post('workflows/{workflowRun}/status', [WorkflowController::class, 'updateStatus']);
 });
