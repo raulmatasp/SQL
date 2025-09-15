@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'hugdata_ai' => [
+        'base_url' => env('HUGDATA_AI_BASE_URL', 'http://localhost:8001'),
+        'api_key' => env('HUGDATA_AI_API_KEY'),
+        'timeout' => env('HUGDATA_AI_TIMEOUT', 30),
+    ],
+
 ];

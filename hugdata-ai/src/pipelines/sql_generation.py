@@ -10,11 +10,13 @@ class SQLGenerationPipeline:
         self.vector_store = vector_store
     
     async def generate_sql(
-        self, 
-        query: str, 
-        schema: Dict[str, Any], 
-        context: Dict[str, Any],
-        project_id: str = None
+        self,
+        query: str,
+        schema: Dict[str, Any] = None,
+        context: Dict[str, Any] = None,
+        project_id: str = None,
+        mdl_hash: str = None,
+        histories: List = None
     ) -> Dict[str, Any]:
         """
         Generate SQL from natural language using RAG approach

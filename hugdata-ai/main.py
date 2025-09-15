@@ -9,7 +9,17 @@ from datetime import datetime
 
 from src.providers.llm_provider import OpenAIProvider, MockLLMProvider
 from src.providers.vector_store import WeaviateProvider, MockVectorStore
+from src.providers.embeddings_provider import OpenAIEmbeddingsProvider, MockEmbeddingsProvider
 from src.pipelines.sql_generation import SQLGenerationPipeline
+from src.web.v1.services.ask import AskService
+from src.web.v1.services.chart import ChartService
+from src.web.v1.services.schema import SchemaService
+from src.web.v1.services.base import initialize_service_container
+from src.web.v1.routers.ask import router as ask_router, set_ask_service
+from src.web.v1.routers.chart import router as chart_router, set_chart_service
+from src.web.v1.routers.schema import router as schema_router, set_schema_service
+from src.web.v1.routers.sql_corrections import router as sql_corrections_router
+from src.web.v1.routers.relationship_recommendation import router as relationship_recommendation_router
 
 # Import Dagster components
 try:
@@ -51,10 +61,43 @@ def get_vector_store():
         print(f"Warning: Weaviate connection failed: {e}, using mock store")
         return MockVectorStore()
 
+def get_embeddings_provider():
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    if openai_api_key:
+        return OpenAIEmbeddingsProvider(openai_api_key)
+    else:
+        print("Warning: No OpenAI API key found, using mock embeddings provider")
+        return MockEmbeddingsProvider()
+
 # Global instances
 llm_provider = get_llm_provider()
 vector_store = get_vector_store()
+embeddings_provider = get_embeddings_provider()
 sql_pipeline = SQLGenerationPipeline(llm_provider, vector_store)
+
+# Initialize service container for new services
+service_container = initialize_service_container(
+    llm_provider=llm_provider,
+    vector_store=vector_store,
+    embeddings_provider=embeddings_provider
+)
+
+# Initialize WrenAI-style services
+ask_service = AskService(llm_provider, vector_store, sql_pipeline)
+chart_service = ChartService(llm_provider)
+schema_service = SchemaService(vector_store)
+set_ask_service(ask_service)
+set_chart_service(chart_service)
+set_schema_service(schema_service)
+
+# Include WrenAI-style routers
+app.include_router(ask_router)
+app.include_router(chart_router)
+app.include_router(schema_router)
+
+# Include new advanced routers with v1 prefix
+app.include_router(sql_corrections_router, prefix="/v1", tags=["SQL Corrections"])
+app.include_router(relationship_recommendation_router, prefix="/v1", tags=["Relationship Recommendations"])
 
 # Request/Response Models
 class NaturalLanguageQuery(BaseModel):
