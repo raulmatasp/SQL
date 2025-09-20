@@ -170,10 +170,11 @@ REASONING: [step by step reasoning for your approach]
             sql += ';'
         
         # Basic security check - ensure it's a read-only query
+        import re as _re
         dangerous_keywords = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'CREATE', 'ALTER', 'TRUNCATE']
         sql_upper = sql.upper()
         for keyword in dangerous_keywords:
-            if keyword in sql_upper:
+            if _re.search(rf"\b{keyword}\b", sql_upper):
                 raise ValueError(f"Dangerous SQL keyword detected: {keyword}")
         
         return sql

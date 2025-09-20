@@ -167,7 +167,7 @@ async def generate_sql(request: NaturalLanguageQuery):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/explain-query")
-async def explain_query(sql: str, schema: Dict[str, Any]):
+async def explain_query(sql: str, schema: Optional[Dict[str, Any]] = None):
     """Explain SQL query in natural language"""
     try:
         # Parse SQL and build a structured explanation
@@ -345,10 +345,13 @@ async def suggest_charts(request: ChartSuggestionRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/index-schema")
-async def index_schema(schema: Dict[str, Any], project_id: str):
+async def index_schema(schema: Optional[Dict[str, Any]] = None, project_id: Optional[str] = None):
     """Index database schema for semantic search"""
     try:
         # Delegate to SchemaService with minimal data_source_config for now
+        if not project_id or not schema:
+            raise HTTPException(status_code=500, detail="Missing project_id or schema")
+
         result = await schema_service.index_schema(
             project_id=project_id,
             data_source_config={},

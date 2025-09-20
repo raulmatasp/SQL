@@ -64,7 +64,7 @@ class SQLCorrectionPipeline:
             if project_id and self.vector_store:
                 relevant_context = await self.vector_store.similarity_search(
                     query=f"SQL error: {sql_error.error} {sql_error.sql}",
-                    collection=f"schema_{project_id}",
+                    collection_name=f"schema_{project_id}",
                     limit=5
                 )
 
@@ -304,10 +304,11 @@ CHANGES_MADE:
             sql += ';'
 
         # Basic security check
+        import re as _re
         dangerous_keywords = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'CREATE', 'ALTER', 'TRUNCATE']
         sql_upper = sql.upper()
         for keyword in dangerous_keywords:
-            if keyword in sql_upper:
+            if _re.search(rf"\b{keyword}\b", sql_upper):
                 raise ValueError(f"Dangerous SQL keyword detected in correction: {keyword}")
 
         return sql

@@ -24,8 +24,8 @@ class LLMProviderResource(ConfigurableResource):
             self._client = openai.OpenAI(api_key=self.openai_api_key)
         return self._client
     
-    async def generate(self, prompt: str, max_tokens: int = 1000, temperature: float = 0.1) -> str:
-        """Generate text using LLM"""
+    def generate(self, prompt: str, max_tokens: int = 1000, temperature: float = 0.1) -> str:
+        """Generate text using LLM (synchronous for asset compatibility)"""
         try:
             response = self.client.chat.completions.create(
                 model=self.model_name,

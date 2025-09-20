@@ -1,2 +1,10 @@
 /DONTUSE
 .claude/
+.pyc*
+.pytest_cache*
+.DS_Store
+.vscode
+.idea
+.cursorrules
+.cursorignore
+__pycache__/*

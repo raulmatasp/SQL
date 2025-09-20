@@ -135,11 +135,14 @@ class SchemaService:
             )
 
             # Filter relationships that involve this table
-            relevant_relationships = [
-                rel for rel in relationship_docs
-                if (rel.get("metadata", {}).get("from_table") == table_name or
-                    rel.get("metadata", {}).get("to_table") == table_name)
-            ]
+            relevant_relationships = []
+            for rel in relationship_docs:
+                # Accept both flattened payload and nested metadata
+                meta = rel.get("metadata", {}) if isinstance(rel, dict) else {}
+                from_table = rel.get("from_table") or meta.get("from_table")
+                to_table = rel.get("to_table") or meta.get("to_table")
+                if from_table == table_name or to_table == table_name:
+                    relevant_relationships.append(rel)
 
             return {
                 "table_info": table_docs[0],
@@ -195,18 +198,18 @@ class SchemaService:
                 )
 
                 for rel in relationships:
-                    metadata = rel.get("metadata", {})
-                    from_table = metadata.get("from_table")
-                    to_table = metadata.get("to_table")
+                    meta = rel.get("metadata", {}) if isinstance(rel, dict) else {}
+                    from_table = rel.get("from_table") or meta.get("from_table")
+                    to_table = rel.get("to_table") or meta.get("to_table")
 
                     # Check if this relationship connects our tables
                     if from_table in table_names and to_table in table_names:
                         join_suggestions.append({
                             "from_table": from_table,
                             "to_table": to_table,
-                            "from_column": metadata.get("from_column"),
-                            "to_column": metadata.get("to_column"),
-                            "relationship_type": metadata.get("relationship_type"),
+                            "from_column": rel.get("from_column") or meta.get("from_column"),
+                            "to_column": rel.get("to_column") or meta.get("to_column"),
+                            "relationship_type": rel.get("relationship_type") or meta.get("relationship_type"),
                             "confidence": rel.get("score", 0.5)
                         })
 
