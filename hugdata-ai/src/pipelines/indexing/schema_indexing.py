@@ -44,8 +44,8 @@ class SchemaIndexingPipeline:
 
             if all_docs:
                 await self.vector_store.add_documents(
+                    collection_name=f"schema_{project_id}",
                     documents=all_docs,
-                    collection_name=f"schema_{project_id}"
                 )
 
             return {

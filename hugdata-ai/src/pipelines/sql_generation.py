@@ -28,8 +28,8 @@ class SQLGenerationPipeline:
             # 1. Retrieve relevant schema context
             relevant_context = await self.vector_store.similarity_search(
                 query=query,
-                collection=f"schema_{project_id}",
-                limit=10
+                collection_name=f"schema_{project_id}",
+                limit=10,
             )
             
             # 2. Build prompt with context

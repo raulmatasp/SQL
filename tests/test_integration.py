@@ -68,22 +68,21 @@ class TestCrossServiceIntegration:
             pytest.skip("Services not running")
     
     def test_ai_query_flow(self):
-        """Test complete AI query flow from Laravel through FastAPI"""
+        """Test complete AI query flow hitting current FastAPI endpoints"""
         try:
-            # Test query endpoint exists
+            # Use current /generate-sql endpoint
             query_data = {
                 "query": "Show me user statistics",
-                "database_schema": {"tables": []}
+                "database_schema": {"tables": {"users": {"columns": []}}},
+                "context": {},
+                "project_id": "test"
             }
-            
-            # Direct FastAPI call
-            fastapi_response = requests.post(f"{FASTAPI_URL}/query", json=query_data, timeout=30)
-            # Accept various status codes as endpoint might not be fully implemented
-            assert fastapi_response.status_code in [200, 404, 422, 500]
-            
+
+            fastapi_response = requests.post(f"{FASTAPI_URL}/generate-sql", json=query_data, timeout=30)
+            assert fastapi_response.status_code in [200, 422, 500]
             if fastapi_response.status_code == 200:
                 data = fastapi_response.json()
-                assert "query" in data
+                assert "sql" in data
             
         except requests.ConnectionError:
             pytest.skip("FastAPI service not running")
@@ -95,9 +94,9 @@ class TestCrossServiceIntegration:
             laravel_response = requests.get(f"{LARAVEL_URL}/api/database/status", timeout=10)
             assert laravel_response.status_code in [200, 404]
             
-            # Test FastAPI database connection
-            fastapi_response = requests.get(f"{FASTAPI_URL}/schema", timeout=10)
-            assert fastapi_response.status_code in [200, 404, 500]
+            # Test FastAPI health and basic endpoints
+            fastapi_response = requests.get(f"{FASTAPI_URL}/health", timeout=10)
+            assert fastapi_response.status_code == 200
             
         except requests.ConnectionError:
             pytest.skip("Services not running")
@@ -189,9 +188,9 @@ class TestErrorHandling:
         """Test handling of invalid AI queries"""
         try:
             invalid_data = {"invalid": "data"}
-            response = requests.post(f"{FASTAPI_URL}/query", json=invalid_data, timeout=10)
+            response = requests.post(f"{FASTAPI_URL}/generate-sql", json=invalid_data, timeout=10)
             # Should return validation error
-            assert response.status_code in [400, 422, 404]
+            assert response.status_code in [400, 422]
             
         except requests.ConnectionError:
             pytest.skip("FastAPI service not running")

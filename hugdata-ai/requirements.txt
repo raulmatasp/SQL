@@ -18,3 +18,4 @@ dagster==1.5.9
 dagster-webserver==1.5.9
 dagster-postgres==0.21.9
 dagster-docker==0.21.9
+qdrant-client==1.7.3

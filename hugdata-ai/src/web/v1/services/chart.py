@@ -181,14 +181,15 @@ class ChartService:
         """
 
         try:
-            response = await self.llm_provider.generate_completion(
+            # Use the standard LLM provider interface
+            response_text = await self.llm_provider.generate(
                 prompt=prompt,
                 max_tokens=300,
                 temperature=0.1
             )
 
-            # Parse JSON response
-            result = json.loads(response.content)
+            # Parse JSON response (provider returns a string)
+            result = json.loads(response_text)
             return {
                 "chart_type": result.get("chart_type", "bar"),
                 "reasoning": result.get("reasoning", "Default suggestion"),

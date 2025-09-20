@@ -140,8 +140,8 @@ class SqlCorrectionService(BaseService):
             # Search for schema information in vector store
             results = await self.vector_store.similarity_search(
                 query="database schema table structure",
-                collection=f"schema_{project_id}",
-                limit=10
+                collection_name=f"schema_{project_id}",
+                limit=10,
             )
 
             if results:

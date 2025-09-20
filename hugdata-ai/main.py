@@ -6,10 +6,11 @@ import uvicorn
 import os
 import asyncio
 from datetime import datetime
+import sqlparse
 
-from src.providers.llm_provider import OpenAIProvider, MockLLMProvider
-from src.providers.vector_store import WeaviateProvider, MockVectorStore
-from src.providers.embeddings_provider import OpenAIEmbeddingsProvider, MockEmbeddingsProvider
+from src.providers.llm_provider import OpenAIProvider, NotConfiguredLLMProvider
+from src.providers.vector_store import QdrantProvider, NotConfiguredVectorStore
+from src.providers.embeddings_provider import OpenAIEmbeddingsProvider, NotConfiguredEmbeddingsProvider
 from src.pipelines.sql_generation import SQLGenerationPipeline
 from src.web.v1.services.ask import AskService
 from src.web.v1.services.chart import ChartService
@@ -44,35 +45,42 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+import logging
+logger = logging.getLogger("hugdata-ai")
+
 # Initialize providers
 def get_llm_provider():
     openai_api_key = os.getenv("OPENAI_API_KEY")
     if openai_api_key:
         return OpenAIProvider(openai_api_key)
     else:
-        print("Warning: No OpenAI API key found, using mock provider")
-        return MockLLMProvider()
+        logger.error("OPENAI_API_KEY not set; LLM completions disabled.")
+        return NotConfiguredLLMProvider("OPENAI_API_KEY is missing")
 
-def get_vector_store():
-    weaviate_url = os.getenv("WEAVIATE_URL", "http://localhost:8080")
+def get_vector_store(embeddings_provider):
+    qdrant_url = os.getenv("QDRANT_URL")
+    qdrant_api_key = os.getenv("QDRANT_API_KEY")
+    if not qdrant_url:
+        logger.error("QDRANT_URL not set; vector search/indexing disabled.")
+        return NotConfiguredVectorStore("QDRANT_URL is missing")
     try:
-        return WeaviateProvider(weaviate_url)
+        return QdrantProvider(url=qdrant_url, api_key=qdrant_api_key, embeddings_provider=embeddings_provider)
     except Exception as e:
-        print(f"Warning: Weaviate connection failed: {e}, using mock store")
-        return MockVectorStore()
+        logger.error(f"Qdrant connection failed: {e}")
+        return NotConfiguredVectorStore(str(e))
 
 def get_embeddings_provider():
     openai_api_key = os.getenv("OPENAI_API_KEY")
     if openai_api_key:
         return OpenAIEmbeddingsProvider(openai_api_key)
     else:
-        print("Warning: No OpenAI API key found, using mock embeddings provider")
-        return MockEmbeddingsProvider()
+        logger.error("OPENAI_API_KEY not set; embeddings disabled.")
+        return NotConfiguredEmbeddingsProvider("OPENAI_API_KEY is missing")
 
 # Global instances
 llm_provider = get_llm_provider()
-vector_store = get_vector_store()
 embeddings_provider = get_embeddings_provider()
+vector_store = get_vector_store(embeddings_provider)
 sql_pipeline = SQLGenerationPipeline(llm_provider, vector_store)
 
 # Initialize service container for new services
@@ -162,19 +170,81 @@ async def generate_sql(request: NaturalLanguageQuery):
 async def explain_query(sql: str, schema: Dict[str, Any]):
     """Explain SQL query in natural language"""
     try:
-        # Mock explanation for now
-        # TODO: Implement actual SQL explanation
+        # Parse SQL and build a structured explanation
+        parsed_statements = sqlparse.parse(sql)
+        if not parsed_statements:
+            raise HTTPException(status_code=400, detail="Invalid SQL provided")
+
+        stmt = parsed_statements[0]
+        tokens = list(stmt.flatten())
+
+        explanation_parts = []
+        breakdown: Dict[str, str] = {}
+
+        # Basic clause detection
+        sql_upper = sql.upper()
+        if "SELECT" in sql_upper:
+            breakdown["SELECT"] = "Retrieves specified columns"
+        if "FROM" in sql_upper:
+            breakdown["FROM"] = "Reads from one or more tables"
+        if "JOIN" in sql_upper:
+            breakdown["JOIN"] = "Combines rows from related tables"
+        if "WHERE" in sql_upper:
+            breakdown["WHERE"] = "Filters rows based on conditions"
+        if "GROUP BY" in sql_upper:
+            breakdown["GROUP BY"] = "Aggregates rows into groups"
+        if "HAVING" in sql_upper:
+            breakdown["HAVING"] = "Filters groups after aggregation"
+        if "ORDER BY" in sql_upper:
+            breakdown["ORDER BY"] = "Sorts the result set"
+        if "LIMIT" in sql_upper:
+            breakdown["LIMIT"] = "Limits number of rows returned"
+
+        # Infer tables mentioned after FROM
+        tables = []
+        in_from = False
+        for token in tokens:
+            if token.ttype is sqlparse.tokens.Keyword and token.value.upper() == 'FROM':
+                in_from = True
+                continue
+            if token.ttype is sqlparse.tokens.Keyword and token.value.upper() in ['WHERE', 'GROUP', 'ORDER', 'LIMIT', 'JOIN', 'HAVING']:
+                in_from = False
+            if in_from and token.ttype is None and token.value.strip():
+                cleaned = token.value.strip().strip(',')
+                if cleaned and cleaned not in tables:
+                    tables.append(cleaned)
+
+        if tables:
+            explanation_parts.append(f"It reads from table(s): {', '.join(tables)}")
+
+        # High-level explanation
+        if 'WHERE' in sql_upper:
+            explanation_parts.append("with filtering conditions applied")
+        if 'GROUP BY' in sql_upper:
+            explanation_parts.append("aggregating results into groups")
+        if 'ORDER BY' in sql_upper:
+            explanation_parts.append("and sorts the output")
+        if 'LIMIT' in sql_upper:
+            explanation_parts.append("with a row limit for safety")
+
+        explanation = "This query retrieves data. " + (" ".join(explanation_parts) if explanation_parts else "")
+
         return {
-            "explanation": f"This query retrieves data from your database tables.",
-            "breakdown": {
-                "SELECT": "Selects specified columns",
-                "FROM": "From the specified table",
-                "WHERE": "Filters data based on conditions",
-                "LIMIT": "Limits the number of results"
-            }
+            "explanation": explanation.strip(),
+            "breakdown": breakdown
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # As a fallback, attempt an LLM-based explanation when available
+        try:
+            prompt = f"Explain the following SQL query in simple terms and provide a short breakdown by clause as JSON with keys explanation and breakdown: \n\n{sql}"
+            response_text = await llm_provider.generate(prompt=prompt, max_tokens=300, temperature=0.1)
+            # Attempt to parse JSON directly
+            import json
+            return json.loads(response_text)
+        except Exception:
+            raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/suggest-charts", response_model=List[ChartSuggestion])
 async def suggest_charts(request: ChartSuggestionRequest):
@@ -278,13 +348,13 @@ async def suggest_charts(request: ChartSuggestionRequest):
 async def index_schema(schema: Dict[str, Any], project_id: str):
     """Index database schema for semantic search"""
     try:
-        # Mock schema indexing for now
-        # TODO: Implement actual schema indexing with vector store
-        return {
-            "success": True,
-            "message": f"Schema indexed for project {project_id}",
-            "indexed_tables": len(schema.get("tables", {}))
-        }
+        # Delegate to SchemaService with minimal data_source_config for now
+        result = await schema_service.index_schema(
+            project_id=project_id,
+            data_source_config={},
+            schema_data=schema
+        )
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -456,10 +526,34 @@ async def _notify_laravel_workflow_failed(workflow_run_id: int, error_message: s
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
+    # Configuration/Dependency diagnostics
+    llm_configured = llm_provider.__class__.__name__ != "NotConfiguredLLMProvider"
+    embeddings_configured = embeddings_provider.__class__.__name__ != "NotConfiguredEmbeddingsProvider"
+    vector_store_configured = vector_store.__class__.__name__ not in ("NotConfiguredVectorStore",)
+
+    vector_store_ok = False
+    vector_store_error = None
+    if vector_store_configured:
+        try:
+            # Try a lightweight call; collection existence will return False or raise on connectivity issues
+            _ = await vector_store.collection_exists("health_check")
+            vector_store_ok = True
+        except Exception as e:
+            vector_store_error = str(e)
+
     return {
-        "status": "healthy", 
+        "status": "healthy",
         "service": "hugdata-ai",
-        "dagster_available": DAGSTER_AVAILABLE
+        "dagster_available": DAGSTER_AVAILABLE,
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "version": app.version,
+        "checks": {
+            "llm_configured": llm_configured,
+            "embeddings_configured": embeddings_configured,
+            "vector_store_configured": vector_store_configured,
+            "vector_store_ok": vector_store_ok,
+            "vector_store_error": vector_store_error,
+        },
     }
 
 if __name__ == "__main__":

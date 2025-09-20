@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Play, Square } from 'lucide-react';
+import { Loader2, Play } from 'lucide-react';
 
 interface QueryInterfaceProps {
   projectId: string;
@@ -21,8 +21,6 @@ interface QueryHistory {
 }
 
 export function QueryInterface({
-  projectId,
-  threadId,
   onQuerySubmit,
   isLoading = false
 }: QueryInterfaceProps) {

@@ -86,12 +86,12 @@ class SchemaService:
             if filters:
                 search_filters.update(filters)
 
-            # Perform semantic search
-            results = await self.vector_store.search(
+            # Perform semantic search (with optional filters)
+            results = await self.vector_store.similarity_search(
                 query=query,
+                collection_name=collection_name,
                 limit=limit,
                 filters=search_filters,
-                collection_name=collection_name
             )
 
             return results

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
+from typing import Optional
 import openai
 import asyncio
 
@@ -9,6 +9,19 @@ class LLMProvider(ABC):
     @abstractmethod
     async def generate(self, prompt: str, max_tokens: int = 1000, temperature: float = 0.1) -> str:
         pass
+
+
+class NotConfiguredLLMProvider(LLMProvider):
+    """LLM provider that raises clear configuration errors."""
+
+    def __init__(self, reason: str = "OpenAI API key is missing"):
+        self.reason = reason
+
+    async def generate(self, prompt: str, max_tokens: int = 1000, temperature: float = 0.1) -> str:
+        raise RuntimeError(
+            f"LLM provider is not configured: {self.reason}. "
+            f"Set OPENAI_API_KEY (and optionally OPENAI_MODEL) to enable completions."
+        )
 
 class OpenAIProvider(LLMProvider):
     """OpenAI LLM Provider"""

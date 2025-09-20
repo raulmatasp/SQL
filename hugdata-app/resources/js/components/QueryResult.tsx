@@ -22,13 +22,13 @@ interface QueryResultProps {
     sql_generation_reasoning?: string;
     status: 'pending' | 'completed' | 'failed' | 'stopped';
     error_message?: string;
-    chart_schema?: any;
+    chart_schema?: Record<string, unknown>;
     chart_type?: string;
     execution_time_ms?: number;
     created_at: string;
   };
   result?: {
-    data: any[];
+    data: Record<string, unknown>[];
     columns: string[];
     row_count: number;
     execution_time_ms?: number;

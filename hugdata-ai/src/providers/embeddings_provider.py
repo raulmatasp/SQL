@@ -45,6 +45,30 @@ class EmbeddingsProvider(ABC):
         """
         pass
 
+
+class NotConfiguredEmbeddingsProvider(EmbeddingsProvider):
+    """Embeddings provider that raises clear configuration errors."""
+
+    def __init__(self, reason: str = "Embeddings provider not configured"):
+        self.reason = reason
+
+    async def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        raise RuntimeError(
+            f"Embeddings provider is not configured: {self.reason}. "
+            f"Provide OPENAI_API_KEY (for OpenAI) or configure HuggingFace model."
+        )
+
+    async def embed_query(self, text: str) -> List[float]:
+        raise RuntimeError(
+            f"Embeddings provider is not configured: {self.reason}. "
+            f"Provide OPENAI_API_KEY (for OpenAI) or configure HuggingFace model."
+        )
+
+    def get_embedding_dimension(self) -> int:
+        raise RuntimeError(
+            f"Embeddings provider is not configured: {self.reason}."
+        )
+
 class OpenAIEmbeddingsProvider(EmbeddingsProvider):
     """OpenAI embeddings provider using text-embedding-ada-002"""
 
